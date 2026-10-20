@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/services/api_service.dart';
+
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
 
@@ -22,6 +24,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
 
+  bool _isRegistering = false;
+
   String? _phoneError;
 
   @override
@@ -36,39 +40,103 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
 
-  void _createAccount() {
-    final isFormValid = _formKey.currentState!.validate();
+  // void _createAccount() {
+  //   final isFormValid = _formKey.currentState!.validate();
+  //
+  //   final phone = _phoneController.text.trim();
+  //
+  //   setState(() {
+  //     if (phone.isEmpty) {
+  //       _phoneError = 'Please enter your phone number';
+  //     } else if (phone.length != 10) {
+  //       _phoneError = 'Please enter a valid phone number';
+  //     } else {
+  //       _phoneError = null;
+  //     }
+  //   });
+  //
+  //   if (!isFormValid || _phoneError != null) {
+  //     return;
+  //   }
+  //
+  //   if (!_agreeToTerms) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(
+  //         content: Text(
+  //           'Please agree to the Terms & Privacy Policy.',
+  //         ),
+  //       ),
+  //     );
+  //
+  //     return;
+  //   }
+  //
+  //   // Account creation will be connected later.
+  // }
 
+  Future<void> _createAccount() async {
+    final isFormValid = _formKey.currentState!.validate();
     final phone = _phoneController.text.trim();
 
     setState(() {
       if (phone.isEmpty) {
         _phoneError = 'Please enter your phone number';
-      } else if (phone.length != 10) {
+      } else if (!RegExp(r'^[0-9]{10}$').hasMatch(phone)) {
         _phoneError = 'Please enter a valid phone number';
       } else {
         _phoneError = null;
       }
     });
 
-    if (!isFormValid || _phoneError != null) {
-      return;
-    }
+    if (!isFormValid || _phoneError != null) return;
 
     if (!_agreeToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Please agree to the Terms & Privacy Policy.',
-          ),
+          content: Text('Please agree to the Terms & Privacy Policy.'),
         ),
       );
-
       return;
     }
 
-    // Account creation will be connected later.
+    if (_isRegistering) return;
+
+    setState(() => _isRegistering = true);
+
+    try {
+      final result = await ApiService.register(
+        name: _fullNameController.text,
+        email: _emailController.text,
+        phone: phone,
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully. Please sign in.'),
+          ),
+        );
+
+        Navigator.of(context).pushNamed('/login');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['message']?.toString() ?? 'Registration failed.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRegistering = false);
+      }
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -614,7 +682,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: _createAccount,
+        // onPressed: _createAccount,
+        onPressed: _isRegistering ? null : _createAccount,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2675E8),
           foregroundColor: Colors.white,
@@ -623,7 +692,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
           elevation: 0,
         ),
-        child: const Row(
+        // child: const Row(
+        //   mainAxisAlignment: MainAxisAlignment.center,
+        //   children: [
+        //     Text(
+        //       'Create Account',
+        //       style: TextStyle(
+        //         fontSize: 14,
+        //         fontWeight: FontWeight.w600,
+        //       ),
+        //     ),
+        //     SizedBox(width: 10),
+        //     Icon(Icons.arrow_forward),
+        //   ],
+        // ),
+        child: _isRegistering
+            ? const SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        )
+            : const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(

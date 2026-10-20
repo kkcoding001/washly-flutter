@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../../core/services/api_service.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -15,12 +18,75 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true;
 
+  bool _isLoggingIn = false;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
+
+
+  Future<void> _signIn() async {
+    if (!_formKey.currentState!.validate() || _isLoggingIn) {
+      return;
+    }
+
+    setState(() => _isLoggingIn = true);
+
+    try {
+      final result = await ApiService.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>;
+        final token = data['token'] as String?;
+
+        if (token == null || token.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Login response did not contain a token.')),
+          );
+          return;
+        }
+
+        await _secureStorage.write(key: 'jwt_token', value: token);
+
+        if (!mounted) return;
+
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/home',
+              (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['message']?.toString() ?? 'Login failed. Please try again.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to sign in. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoggingIn = false);
+      }
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -573,12 +639,13 @@ class _LoginScreenState extends State<LoginScreen> {
       width: double.infinity,
       height: 56,
       child: OutlinedButton(
-        onPressed: () {
-          if (_formKey.currentState!.validate()) {
-            // Login will be connected later.
-            Navigator.of(context).pushNamed('/home');
-          }
-        },
+        // onPressed: () {
+        //   if (_formKey.currentState!.validate()) {
+        //     // Login will be connected later.
+        //     Navigator.of(context).pushNamed('/home');
+        //   }
+        // },
+        onPressed: _isLoggingIn ? null : _signIn,
         style: OutlinedButton.styleFrom(
           backgroundColor: const Color(0xFF2675E8),
           foregroundColor: Colors.white,
@@ -589,7 +656,26 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: const Row(
+        // child: const Row(
+        //   mainAxisAlignment: MainAxisAlignment.center,
+        //   children: [
+        //     Text(
+        //       'Sign In',
+        //       style: TextStyle(
+        //         fontSize: 14,
+        //         fontWeight: FontWeight.w600,
+        //       ),
+        //     ),
+        //     SizedBox(width: 8),
+        //     Icon(
+        //       Icons.arrow_forward,
+        //       size: 18,
+        //     ),
+        //   ],
+        // ),
+        child: _isLoggingIn
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
@@ -600,10 +686,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             SizedBox(width: 8),
-            Icon(
-              Icons.arrow_forward,
-              size: 18,
-            ),
+            Icon(Icons.arrow_forward, size: 18),
           ],
         ),
       ),
