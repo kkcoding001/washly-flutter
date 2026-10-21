@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:washly/core/services/api_service.dart';
 
 import 'personal_information_screen.dart';
 import 'my_vehicles_screen.dart';
 import 'change_password_screen.dart';
 
-// class ProfileScreen extends StatelessWidget {
-//   const ProfileScreen({
-//     super.key,
-//     required this.onBackToHome,
-//   });
-//
-//   final VoidCallback onBackToHome;
-
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     required this.onBackToHome,
@@ -21,10 +14,78 @@ class ProfileScreen extends StatelessWidget {
   });
 
   final VoidCallback onBackToHome;
-
   final List<Map<String, String>> vehicles;
-
   final ValueChanged<List<Map<String, String>>> onVehiclesChanged;
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? _profile;
+
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  // ============================================================
+  // LOAD PROFILE FROM BACKEND
+  // ============================================================
+
+  Future<void> _loadProfile() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await ApiService.getProfile();
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final data = result['data'];
+
+      setState(() {
+        _profile = data is Map
+            ? Map<String, dynamic>.from(data)
+            : null;
+
+        _isLoading = false;
+
+        if (_profile == null) {
+          _errorMessage = 'Invalid profile response from server.';
+        }
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+        _errorMessage =
+            result['message']?.toString() ??
+                'Unable to load your profile.';
+      });
+    }
+  }
+
+  String _profileValue(String key, String fallback) {
+    final value = _profile?[key]?.toString().trim();
+
+    if (value == null || value.isEmpty || value == 'null') {
+      return fallback;
+    }
+
+    return value;
+  }
+
+  // ============================================================
+  // MAIN SCREEN
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -69,18 +130,13 @@ class ProfileScreen extends StatelessWidget {
                       icon: Icons.directions_car_outlined,
                       title: 'My Vehicles',
                       onTap: () {
-                        // Navigator.push(
-                        //   context,
-                        //   MaterialPageRoute(
-                        //     builder: (_) => const MyVehiclesScreen(),
-                        //   ),
-                        // );
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => MyVehiclesScreen(
-                              vehicles: vehicles,
-                              onVehiclesChanged: onVehiclesChanged,
+                              vehicles: widget.vehicles,
+                              onVehiclesChanged:
+                              widget.onVehiclesChanged,
                             ),
                           ),
                         );
@@ -96,7 +152,8 @@ class ProfileScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const ChangePasswordScreen(),
+                            builder: (_) =>
+                            const ChangePasswordScreen(),
                           ),
                         );
                       },
@@ -108,7 +165,8 @@ class ProfileScreen extends StatelessWidget {
                       icon: Icons.help_outline,
                       title: 'Help & Support',
                       onTap: () {
-                        // Add later
+                        // Help & Support functionality can be
+                        // connected later.
                       },
                     ),
 
@@ -145,7 +203,7 @@ class ProfileScreen extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
-              onPressed: onBackToHome,
+              onPressed: widget.onBackToHome,
               icon: const Icon(
                 Icons.arrow_back_ios_new,
                 color: Color(0xFFDCE1EA),
@@ -230,47 +288,86 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
-
           ],
         ),
 
         const SizedBox(height: 18),
 
-        const Text(
-          'Rahul Patel',
-          style: TextStyle(
-            color: Color(0xFFE7E9ED),
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
+        if (_isLoading) ...[
+          const SizedBox(
+            width: 25,
+            height: 25,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: Color(0xFF2878E8),
+            ),
           ),
-        ),
-
-        const SizedBox(height: 7),
-
-        const Text(
-          'rahul@gmail.com',
-          style: TextStyle(
-            color: Color(0xFFB5BBC5),
-            fontSize: 14,
+          const SizedBox(height: 12),
+          const Text(
+            'Loading profile...',
+            style: TextStyle(
+              color: Color(0xFFB5BBC5),
+              fontSize: 14,
+            ),
           ),
-        ),
-
-        const SizedBox(height: 7),
-
-        const Text(
-          '+91 11223 44556',
-          style: TextStyle(
-            color: Color(0xFFAFC5FF),
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+        ] else if (_errorMessage != null) ...[
+          Text(
+            _errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFFF9B9B),
+              fontSize: 14,
+            ),
           ),
-        ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _loadProfile,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFAFC5FF),
+            ),
+          ),
+        ] else ...[
+          Text(
+            _profileValue('name', 'Name not available'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFE7E9ED),
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          Text(
+            _profileValue('email', 'Email not available'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFB5BBC5),
+              fontSize: 14,
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          Text(
+            _profileValue('phone', 'Phone not available'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFAFC5FF),
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ],
     );
   }
 
   // ============================================================
-  // PROFILE OPTION
+  // PROFILE OPTIONS
   // ============================================================
 
   Widget _buildProfileOption({
@@ -344,7 +441,7 @@ class ProfileScreen extends StatelessWidget {
       height: 53,
       child: OutlinedButton(
         onPressed: () {
-          // Logout functionality will be connected later.
+          // Logout functionality is not connected yet.
         },
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFFFF9B9B),
@@ -356,9 +453,9 @@ class ProfileScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(11),
           ),
         ),
-        child: Row(
+        child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
+          children: [
             Icon(
               Icons.logout,
               size: 21,

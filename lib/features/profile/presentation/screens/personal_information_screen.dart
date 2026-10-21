@@ -1,4 +1,6 @@
+
 import 'package:flutter/material.dart';
+import 'package:washly/core/services/api_service.dart';
 
 class PersonalInformationScreen extends StatefulWidget {
   const PersonalInformationScreen({super.key});
@@ -11,13 +13,137 @@ class PersonalInformationScreen extends StatefulWidget {
 class _PersonalInformationScreenState
     extends State<PersonalInformationScreen> {
   final TextEditingController _nameController =
-  TextEditingController(text: 'Rahul Patel');
+  TextEditingController();
 
   final TextEditingController _emailController =
-  TextEditingController(text: 'rahul@gmail.com');
+  TextEditingController();
 
   final TextEditingController _phoneController =
-  TextEditingController(text: '+91 11223 44556');
+  TextEditingController();
+
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  // ============================================================
+  // LOAD USER DATA FROM BACKEND
+  // ============================================================
+
+  Future<void> _loadProfile() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await ApiService.getProfile();
+
+    if (!mounted) return;
+
+    if (result['success'] == true &&
+        result['data'] is Map) {
+      final data = Map<String, dynamic>.from(
+        result['data'] as Map,
+      );
+
+      setState(() {
+        _nameController.text =
+            data['name']?.toString() ?? '';
+
+        _emailController.text =
+            data['email']?.toString() ?? '';
+
+        _phoneController.text =
+            data['phone']?.toString() ?? '';
+
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+        _errorMessage =
+            result['message']?.toString() ??
+                'Unable to load your profile.';
+      });
+    }
+  }
+
+
+
+  Future<void> _saveChanges() async {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your full name.'),
+        ),
+      );
+      return;
+    }
+
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    final result = await ApiService.updateProfile(
+      name: name,
+      phone: phone,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSaving = false;
+    });
+
+    if (result['success'] == true) {
+      // Refresh the displayed values from the server response.
+      final data = result['data'];
+
+      if (data is Map) {
+        setState(() {
+          _nameController.text =
+              data['name']?.toString() ?? name;
+
+          _emailController.text =
+              data['email']?.toString() ??
+                  _emailController.text;
+
+          _phoneController.text =
+              data['phone']?.toString() ?? phone;
+        });
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['message']?.toString() ??
+                'Unable to update profile.',
+          ),
+        ),
+      );
+    }
+  }
+
 
   @override
   void dispose() {
@@ -30,7 +156,7 @@ class _PersonalInformationScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFF0D1215),
       body: SafeArea(
         child: Column(
@@ -39,12 +165,54 @@ class _PersonalInformationScreenState
 
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 40, 20, 30),
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  40,
+                  20,
+                  30,
+                ),
                 child: Column(
                   children: [
                     _buildProfilePhoto(),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
+
+                    if (_isLoading) ...[
+                      const CircularProgressIndicator(
+                        color: Color(0xFF2878E8),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Loading your information...',
+                        style: TextStyle(
+                          color: Color(0xFFB8BEC9),
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    if (_errorMessage != null) ...[
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFFFF9B9B),
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _loadProfile,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                        style: TextButton.styleFrom(
+                          foregroundColor:
+                          const Color(0xFFAFC5FF),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     _buildField(
                       label: 'Full Name',
@@ -59,6 +227,7 @@ class _PersonalInformationScreenState
                       controller: _emailController,
                       icon: Icons.mail_outline,
                       active: true,
+                      readOnly: true,
                     ),
 
                     const SizedBox(height: 24),
@@ -81,6 +250,10 @@ class _PersonalInformationScreenState
       ),
     );
   }
+
+  // ============================================================
+  // HEADER
+  // ============================================================
 
   Widget _buildHeader() {
     return Container(
@@ -106,11 +279,12 @@ class _PersonalInformationScreenState
               ),
             ),
           ),
+
           const Text(
-            'Profile',
+            'Personal Information',
             style: TextStyle(
               color: Color(0xFFE7E9ED),
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -118,6 +292,10 @@ class _PersonalInformationScreenState
       ),
     );
   }
+
+  // ============================================================
+  // PROFILE PHOTO
+  // ============================================================
 
   Widget _buildProfilePhoto() {
     return Column(
@@ -143,6 +321,7 @@ class _PersonalInformationScreenState
                 ),
               ),
             ),
+
             Positioned(
               right: -1,
               bottom: -1,
@@ -162,7 +341,9 @@ class _PersonalInformationScreenState
             ),
           ],
         ),
+
         const SizedBox(height: 22),
+
         const Text(
           'Change photo',
           style: TextStyle(
@@ -174,11 +355,16 @@ class _PersonalInformationScreenState
     );
   }
 
+  // ============================================================
+  // INPUT FIELD
+  // ============================================================
+
   Widget _buildField({
     required String label,
     required TextEditingController controller,
     required IconData icon,
     bool active = false,
+    bool readOnly = false,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -194,7 +380,12 @@ class _PersonalInformationScreenState
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+        padding: const EdgeInsets.fromLTRB(
+          12,
+          14,
+          12,
+          10,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -208,7 +399,9 @@ class _PersonalInformationScreenState
                 fontWeight: FontWeight.w600,
               ),
             ),
+
             const SizedBox(height: 8),
+
             Row(
               children: [
                 Icon(
@@ -218,10 +411,15 @@ class _PersonalInformationScreenState
                       : const Color(0xFFB8BEC9),
                   size: 21,
                 ),
+
                 const SizedBox(width: 10),
+
                 Expanded(
                   child: TextField(
                     controller: controller,
+                    readOnly: readOnly,
+                    enabled: !_isLoading &&
+                        _errorMessage == null,
                     style: const TextStyle(
                       color: Color(0xFFE2E5EA),
                       fontSize: 15,
@@ -240,12 +438,55 @@ class _PersonalInformationScreenState
     );
   }
 
+  // ============================================================
+  // SAVE BUTTON
+  // ============================================================
+
+  // Widget _buildSaveButton() {
+  //   return SizedBox(
+  //     width: double.infinity,
+  //     height: 56,
+  //     child: ElevatedButton(
+  //       onPressed: _isLoading || _errorMessage != null
+  //           ? null
+  //           : () {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           const SnackBar(
+  //             content: Text(
+  //               'Profile update is not connected yet.',
+  //             ),
+  //           ),
+  //         );
+  //       },
+  //       style: ElevatedButton.styleFrom(
+  //         backgroundColor: const Color(0xFF2878E8),
+  //         foregroundColor: Colors.white,
+  //         elevation: 8,
+  //         shadowColor: const Color(0x662878E8),
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(11),
+  //         ),
+  //       ),
+  //       child: const Text(
+  //         'Save Changes',
+  //         style: TextStyle(
+  //           fontSize: 14,
+  //           fontWeight: FontWeight.w600,
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
+
+
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: _isLoading || _isSaving || _errorMessage != null
+            ? null
+            : _saveChanges,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2878E8),
           foregroundColor: Colors.white,
@@ -255,7 +496,16 @@ class _PersonalInformationScreenState
             borderRadius: BorderRadius.circular(11),
           ),
         ),
-        child: const Text(
+        child: _isSaving
+            ? const SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        )
+            : const Text(
           'Save Changes',
           style: TextStyle(
             fontSize: 14,
@@ -265,4 +515,5 @@ class _PersonalInformationScreenState
       ),
     );
   }
+
 }
