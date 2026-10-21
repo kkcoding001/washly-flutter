@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/services/api_service.dart';
 import '../../../vehicles/presentation/screens/add_vehicle_screen.dart';
 import 'edit_vehicle_screen.dart';
 
@@ -28,20 +30,87 @@ class MyVehiclesScreen extends StatefulWidget {
 
 class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
 
-  // final List<Map<String, String>> _vehicles = [
-  //   {
-  //     'brand': 'Hyundai',
-  //     'model': 'Creta',
-  //     'registration': 'GJ01AB1234',
-  //     'type': 'CAR',
-  //   },
-  //   {
-  //     'brand': 'Honda',
-  //     'model': 'City',
-  //     'registration': 'GJ05XY4567',
-  //     'type': 'CAR',
-  //   },
-  // ];
+
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<Map<String, String>> _vehicles = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicles();
+  }
+
+  Future<void> _loadVehicles() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    final result = await ApiService.getVehicles();
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final data = result['data'];
+
+      if (data is List) {
+        final vehicles = data
+            .whereType<Map<String, dynamic>>()
+            .map(ApiService.vehicleToUiMap)
+            .toList();
+
+        setState(() {
+          _vehicles = vehicles;
+          _isLoading = false;
+        });
+
+        widget.onVehiclesChanged(vehicles);
+      } else {
+        setState(() {
+          _errorMessage = 'Unexpected vehicle data from the server.';
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() {
+        _errorMessage =
+            result['message']?.toString() ?? 'Unable to load vehicles.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _openAddVehicle() async {
+    final result = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddVehicleScreen(),
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    await _loadVehicles();
+  }
+
+  Future<void> _openEditVehicle(
+      Map<String, String> vehicle,
+      ) async {
+    final result = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditVehicleScreen(vehicle: vehicle),
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    await _loadVehicles();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -53,9 +122,44 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
           children: [
             _buildHeader(),
 
+            // Expanded(
+            //   // child: _vehicles.isEmpty
+            //   child: widget.vehicles.isEmpty
+            //       ? _buildEmptyState()
+            //       : _buildVehicleList(),
+            // ),
             Expanded(
-              // child: _vehicles.isEmpty
-              child: widget.vehicles.isEmpty
+              child: _isLoading
+                  ? const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF2878E8),
+                ),
+              )
+                  : _errorMessage != null
+                  ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFFE3E6EA),
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadVehicles,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+                  : _vehicles.isEmpty
                   ? _buildEmptyState()
                   : _buildVehicleList(),
             ),
@@ -153,9 +257,8 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                 ),
               ),
 
-              // const SizedBox(height: 28),
-
-              // _buildAddVehicleButton(),
+              const SizedBox(height: 28),
+              _buildAddVehicleButton(),
             ],
           ),
         ),
@@ -178,76 +281,152 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
 
         const SizedBox(height: 24),
 
-        // ..._vehicles.map(
-        ...widget.vehicles.map(
+        // ...widget.vehicles.map(
+        ..._vehicles.map(
               (vehicle) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _buildVehicleCard(vehicle),
           ),
         ),
+
+        const SizedBox(height: 12),
+        _buildAddVehicleButton(), // Add vehicle button
+
       ],
     );
   }
 
+  // Widget _buildVehicleCard(Map<String, String> vehicle) {
+  //   return InkWell(
+  //     onTap: () async {
+  //
+  //       final result = await Navigator.push<Object?>(
+  //         context,
+  //         MaterialPageRoute(
+  //           builder: (_) => EditVehicleScreen(
+  //             vehicle: vehicle,
+  //           ),
+  //         ),
+  //       );
+  //
+  //       if (result == true) {
+  //         // Remove vehicle
+  //         final updatedVehicles =
+  //         List<Map<String, String>>.from(widget.vehicles);
+  //
+  //         updatedVehicles.remove(vehicle);
+  //
+  //         widget.onVehiclesChanged(updatedVehicles);
+  //       } else if (result is Map<String, String>) {
+  //         // Update vehicle
+  //         final updatedVehicles =
+  //         List<Map<String, String>>.from(widget.vehicles);
+  //
+  //         final index = updatedVehicles.indexOf(vehicle);
+  //
+  //         if (index != -1) {
+  //           updatedVehicles[index] = result;
+  //           widget.onVehiclesChanged(updatedVehicles);
+  //         }
+  //       }
+  //     },
+  //     borderRadius: BorderRadius.circular(14),
+  //     child: Container(
+  //       height: 130,
+  //       padding: const EdgeInsets.all(12),
+  //       decoration: BoxDecoration(
+  //         color: const Color(0xFF1B2024),
+  //         borderRadius: BorderRadius.circular(14),
+  //         border: Border.all(
+  //           color: const Color(0xFF292F35),
+  //         ),
+  //       ),
+  //       child: Row(
+  //         children: [
+  //           Container(
+  //             width: 94,
+  //             height: 106,
+  //             decoration: BoxDecoration(
+  //               color: const Color(0xFF172025),
+  //               borderRadius: BorderRadius.circular(8),
+  //               border: Border.all(
+  //                 color: const Color(0xFF293138),
+  //               ),
+  //             ),
+  //             child: const Icon(
+  //               Icons.directions_car_outlined,
+  //               color: Color(0xFF9EA6B2),
+  //               size: 48,
+  //             ),
+  //           ),
+  //
+  //           const SizedBox(width: 24),
+  //
+  //           Expanded(
+  //             child: Column(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               mainAxisAlignment: MainAxisAlignment.center,
+  //               children: [
+  //                 Text(
+  //                   '${vehicle['brand']} ${vehicle['model']}',
+  //                   style: const TextStyle(
+  //                     color: Color(0xFFE3E6EA),
+  //                     fontSize: 19,
+  //                     fontWeight: FontWeight.w700,
+  //                   ),
+  //                 ),
+  //
+  //                 const SizedBox(height: 8),
+  //
+  //                 Text(
+  //                   vehicle['registration']!,
+  //                   style: const TextStyle(
+  //                     color: Color(0xFFB7BDC8),
+  //                     fontSize: 15,
+  //                   ),
+  //                 ),
+  //
+  //                 const SizedBox(height: 8),
+  //
+  //                 Container(
+  //                   padding: const EdgeInsets.symmetric(
+  //                     horizontal: 12,
+  //                     vertical: 5,
+  //                   ),
+  //                   decoration: BoxDecoration(
+  //                     color: const Color(0xFF353A40),
+  //                     borderRadius: BorderRadius.circular(15),
+  //                   ),
+  //                   child: Text(
+  //                     vehicle['type']!,
+  //                     style: const TextStyle(
+  //                       color: Color(0xFFC8CDD5),
+  //                       fontSize: 11,
+  //                       fontWeight: FontWeight.w600,
+  //                     ),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //
+  //           const Text(
+  //             'Edit',
+  //             style: TextStyle(
+  //               color: Color(0xFFAFC5FF),
+  //               fontSize: 16,
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
+
   Widget _buildVehicleCard(Map<String, String> vehicle) {
     return InkWell(
-      onTap: () async {
-        // final removed = await Navigator.push<bool>(
-        //   context,
-        //   MaterialPageRoute(
-        //     builder: (_) => EditVehicleScreen(
-        //       vehicle: vehicle,
-        //     ),
-        //   ),
-        // );
-        // final result = await Navigator.push(
-        final result = await Navigator.push<Object?>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EditVehicleScreen(
-              vehicle: vehicle,
-            ),
-          ),
-        );
-
-        if (result == true) {
-          // Remove vehicle
-          final updatedVehicles =
-          List<Map<String, String>>.from(widget.vehicles);
-
-          updatedVehicles.remove(vehicle);
-
-          widget.onVehiclesChanged(updatedVehicles);
-        } else if (result is Map<String, String>) {
-          // Update vehicle
-          final updatedVehicles =
-          List<Map<String, String>>.from(widget.vehicles);
-
-          final index = updatedVehicles.indexOf(vehicle);
-
-          if (index != -1) {
-            updatedVehicles[index] = result;
-            widget.onVehiclesChanged(updatedVehicles);
-          }
-        }
-
-        // if (removed == true) {
-        //   setState(() {
-        //     // _vehicles.remove(vehicle);
-        //     widget.vehicles.remove(vehicle);
-        //   });
-        // }
-
-        // if (removed == true) {
-        //   final updatedVehicles =
-        //   List<Map<String, String>>.from(widget.vehicles);
-        //
-        //   updatedVehicles.remove(vehicle);
-        //
-        //   widget.onVehiclesChanged(updatedVehicles);
-        // }
-
-      },
+      onTap: () => _openEditVehicle(vehicle),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         height: 130,
@@ -297,7 +476,7 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                   const SizedBox(height: 8),
 
                   Text(
-                    vehicle['registration']!,
+                    vehicle['registration'] ?? '',
                     style: const TextStyle(
                       color: Color(0xFFB7BDC8),
                       fontSize: 15,
@@ -316,7 +495,7 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                       borderRadius: BorderRadius.circular(15),
                     ),
                     child: Text(
-                      vehicle['type']!,
+                      vehicle['type'] ?? 'Car',
                       style: const TextStyle(
                         color: Color(0xFFC8CDD5),
                         fontSize: 11,
@@ -341,45 +520,32 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
     );
   }
 
-  // Widget _buildAddVehicleButton() {
-  //   return SizedBox(
-  //     width: double.infinity,
-  //     height: 60,
-  //     child: ElevatedButton(
-  //       onPressed: () async {
-  //         final result = await Navigator.push(
-  //           context,
-  //           MaterialPageRoute(
-  //             builder: (_) => const AddVehicleScreen(),
-  //           ),
-  //         );
-  //
-  //         if (result != null) {
-  //           setState(() {
-  //             // _vehicles.add(
-  //             widget.vehicles.add(
-  //               Map<String, String>.from(result),
-  //             );
-  //           });
-  //         }
-  //       },
-  //       style: ElevatedButton.styleFrom(
-  //         backgroundColor: const Color(0xFF2878E8),
-  //         foregroundColor: Colors.white,
-  //         elevation: 8,
-  //         shadowColor: const Color(0x662878E8),
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(9),
-  //         ),
-  //       ),
-  //       child: const Text(
-  //         'Add Vehicle',
-  //         style: TextStyle(
-  //           fontSize: 18,
-  //           fontWeight: FontWeight.w600,
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
+
+
+  Widget _buildAddVehicleButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 60,
+      child: ElevatedButton(
+        onPressed: _openAddVehicle,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2878E8),
+          foregroundColor: Colors.white,
+          elevation: 8,
+          shadowColor: const Color(0x662878E8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(9),
+          ),
+        ),
+        child: const Text(
+          'Add Vehicle',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
 }

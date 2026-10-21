@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/services/api_service.dart';
+
 class AddVehicleScreen extends StatefulWidget {
   const AddVehicleScreen({super.key});
 
@@ -8,7 +10,10 @@ class AddVehicleScreen extends StatefulWidget {
 }
 
 class _AddVehicleScreenState extends State<AddVehicleScreen> {
+
   String _selectedVehicleType = 'Car';
+
+  bool _isSaving = false;
 
   final TextEditingController _brandController =
   TextEditingController();
@@ -320,40 +325,143 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
   // ADD VEHICLE BUTTON
   // ============================================================
 
+  // Widget _buildAddVehicleButton() {
+  //   return SizedBox(
+  //     width: double.infinity,
+  //     height: 56,
+  //     child: ElevatedButton(
+  //       onPressed: () {
+  //         // Save functionality will be added
+  //         if (_brandController.text.trim().isEmpty ||
+  //             _modelController.text.trim().isEmpty ||
+  //             _registrationController.text.trim().isEmpty) {
+  //           ScaffoldMessenger.of(context).showSnackBar(
+  //             const SnackBar(
+  //               content: Text('Please fill in all vehicle details.'),
+  //             ),
+  //           );
+  //           return;
+  //         }
+  //
+  //         Navigator.of(context).pop({
+  //           'type': _selectedVehicleType,
+  //           'brand': _brandController.text.trim(),
+  //           'model': _modelController.text.trim(),
+  //           'registration': _registrationController.text.trim(),
+  //         });
+  //       },
+  //       style: ElevatedButton.styleFrom(
+  //         backgroundColor: const Color(0xFF2878E8),
+  //         foregroundColor: Colors.white,
+  //         elevation: 0,
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(11),
+  //         ),
+  //       ),
+  //       child: const Row(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Text(
+  //             'Add Vehicle',
+  //             style: TextStyle(
+  //               fontSize: 15,
+  //               fontWeight: FontWeight.w600,
+  //             ),
+  //           ),
+  //           SizedBox(width: 10),
+  //           Icon(
+  //             Icons.arrow_forward,
+  //             size: 20,
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
   Widget _buildAddVehicleButton() {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: () {
-          // Save functionality will be added
-          if (_brandController.text.trim().isEmpty ||
-              _modelController.text.trim().isEmpty ||
-              _registrationController.text.trim().isEmpty) {
+        onPressed: _isSaving
+            ? null
+            : () async {
+          final brand = _brandController.text.trim();
+          final model = _modelController.text.trim();
+          final registration =
+          _registrationController.text.trim();
+
+          if (brand.isEmpty ||
+              model.isEmpty ||
+              registration.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Please fill in all vehicle details.'),
+                content: Text(
+                  'Please fill in all vehicle details.',
+                ),
               ),
             );
             return;
           }
 
-          Navigator.of(context).pop({
-            'type': _selectedVehicleType,
-            'brand': _brandController.text.trim(),
-            'model': _modelController.text.trim(),
-            'registration': _registrationController.text.trim(),
+          setState(() {
+            _isSaving = true;
           });
+
+          final result = await ApiService.addVehicle(
+            brand: brand,
+            model: model,
+            registrationNumber: registration,
+          );
+
+          if (!mounted) return;
+
+          setState(() {
+            _isSaving = false;
+          });
+
+          if (result['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Vehicle added successfully.',
+                ),
+              ),
+            );
+
+            // The My Vehicles screen will reload the list.
+            Navigator.of(context).pop(true);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  result['message']?.toString() ??
+                      'Unable to add vehicle. Please try again.',
+                ),
+              ),
+            );
+          }
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2878E8),
           foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF46556B),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(11),
           ),
         ),
-        child: const Row(
+        child: _isSaving
+            ? const SizedBox(
+          height: 22,
+          width: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        )
+            : const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
@@ -373,4 +481,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
       ),
     );
   }
+
+
 }
