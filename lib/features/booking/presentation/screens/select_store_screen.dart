@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:washly/features/booking/presentation/screens/select_date_screen.dart';
 
+import '../../../../core/services/store_service.dart';
+import '../../../../models/store.dart';
+
+
 class SelectStoreScreen extends StatefulWidget {
   final Map<String, String> selectedVehicle;
   final Map<String, dynamic> selectedService;
@@ -18,22 +22,58 @@ class SelectStoreScreen extends StatefulWidget {
 
 class _SelectStoreScreenState
     extends State<SelectStoreScreen> {
+
+  // int _selectedStoreIndex = 0;
+  //
+  // final List<Map<String, dynamic>> _stores = [
+  //   {
+  //     'name': 'Bopal Car Wash',
+  //     'location': 'Bopal, Ahmedabad',
+  //     'hours': 'Open · 9:00 AM – 8:00 PM',
+  //     'distance': '2.4 km away',
+  //   },
+  //   {
+  //     'name': 'Satellite Car Wash',
+  //     'location': 'Satellite, Ahmedabad',
+  //     'hours': 'Open · 9:00 AM – 8:00 PM',
+  //     'distance': '5.8 km away',
+  //   },
+  // ];
+
   int _selectedStoreIndex = 0;
 
-  final List<Map<String, dynamic>> _stores = [
-    {
-      'name': 'Bopal Car Wash',
-      'location': 'Bopal, Ahmedabad',
-      'hours': 'Open · 9:00 AM – 8:00 PM',
-      'distance': '2.4 km away',
-    },
-    {
-      'name': 'Satellite Car Wash',
-      'location': 'Satellite, Ahmedabad',
-      'hours': 'Open · 9:00 AM – 8:00 PM',
-      'distance': '5.8 km away',
-    },
-  ];
+  final StoreService _storeService = StoreService();
+
+  List<Store> _stores = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStores();
+  }
+
+  Future<void> _loadStores() async {
+    try {
+      final stores = await _storeService.getStores();
+
+      if (!mounted) return;
+
+      setState(() {
+        _stores = stores;
+        _selectedStoreIndex = 0;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = error.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -270,17 +310,79 @@ class _SelectStoreScreenState
   // STORE LIST
   // ============================================================
 
+  // Widget _buildStoreList() {
+  //   return Column(
+  //     children: List.generate(
+  //       _stores.length,
+  //           (index) {
+  //         return Padding(
+  //           padding: const EdgeInsets.only(
+  //             bottom: 12,
+  //           ),
+  //           child: _buildStoreCard(
+  //             store: _stores[index],
+  //             index: index,
+  //           ),
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
   Widget _buildStoreList() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(
+            color: Color(0xFF2878E8),
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Column(
+        children: [
+          Text(
+            'Could not load stores.\n$_errorMessage',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFB8C0CC),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _errorMessage = null;
+              });
+              _loadStores();
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      );
+    }
+
+    if (_stores.isEmpty) {
+      return const Text(
+        'No active stores available.',
+        style: TextStyle(
+          color: Color(0xFFB8C0CC),
+        ),
+      );
+    }
+
     return Column(
       children: List.generate(
         _stores.length,
             (index) {
+          final store = _stores[index];
+
           return Padding(
-            padding: const EdgeInsets.only(
-              bottom: 12,
-            ),
+            padding: const EdgeInsets.only(bottom: 12),
             child: _buildStoreCard(
-              store: _stores[index],
+              store: store.toSelectionMap(),
               index: index,
             ),
           );
@@ -413,7 +515,8 @@ class _SelectStoreScreenState
                     BorderRadius.circular(6),
                   ),
                   child: Text(
-                    store['distance'],
+                    // store['distance'],
+                    store['postalCode'] ?? '',
                     style: const TextStyle(
                       color: Color(0xFFBFC6D0),
                       fontSize: 11,
@@ -525,9 +628,27 @@ class _SelectStoreScreenState
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
+          // onPressed: () {
+          //   final selectedStore =
+          //   _stores[_selectedStoreIndex];
+          //
+          //   Navigator.of(context).push(
+          //     MaterialPageRoute(
+          //       builder: (context) => SelectDateScreen(
+          //         selectedVehicle: widget.selectedVehicle,
+          //         selectedService: widget.selectedService,
+          //         selectedStore: selectedStore,
+          //       ),
+          //     ),
+          //   );
+          // },
+          onPressed: _isLoading ||
+              _errorMessage != null ||
+              _stores.isEmpty
+              ? null
+              : () {
             final selectedStore =
-            _stores[_selectedStoreIndex];
+            _stores[_selectedStoreIndex].toSelectionMap();
 
             Navigator.of(context).push(
               MaterialPageRoute(

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:washly/features/booking/presentation/screens/select_store_screen.dart';
 
+import '../../../../core/services/wash_service_api.dart';
+import '../../../../models/wash_service.dart';
+
 class SelectServiceScreen extends StatefulWidget {
   final Map<String, String> selectedVehicle;
 
@@ -16,34 +19,72 @@ class SelectServiceScreen extends StatefulWidget {
 
 class _SelectServiceScreenState
     extends State<SelectServiceScreen> {
-  int _selectedServiceIndex = 1;
 
-  final List<Map<String, dynamic>> _services = [
-    {
-      'name': 'Basic Wash',
-      'description': 'Essential exterior wash',
-      'duration': '30 min',
-      'price': '₹300',
-      'icon': Icons.water_drop_outlined,
-      'popular': false,
-    },
-    {
-      'name': 'Premium Wash',
-      'description': 'Deep exterior and interior clean',
-      'duration': '45 min',
-      'price': '₹500',
-      'icon': Icons.auto_awesome_outlined,
-      'popular': true,
-    },
-    {
-      'name': 'Full Detailing',
-      'description': 'Complete professional car detailing\nwith Oiling',
-      'duration': '90 min',
-      'price': '₹800',
-      'icon': Icons.brush_outlined,
-      'popular': false,
-    },
-  ];
+  // int _selectedServiceIndex = 1;
+  //
+  // final List<Map<String, dynamic>> _services = [
+  //   {
+  //     'name': 'Basic Wash',
+  //     'description': 'Essential exterior wash',
+  //     'duration': '30 min',
+  //     'price': '₹300',
+  //     'icon': Icons.water_drop_outlined,
+  //     'popular': false,
+  //   },
+  //   {
+  //     'name': 'Premium Wash',
+  //     'description': 'Deep exterior and interior clean',
+  //     'duration': '45 min',
+  //     'price': '₹500',
+  //     'icon': Icons.auto_awesome_outlined,
+  //     'popular': true,
+  //   },
+  //   {
+  //     'name': 'Full Detailing',
+  //     'description': 'Complete professional car detailing\nwith Oiling',
+  //     'duration': '90 min',
+  //     'price': '₹800',
+  //     'icon': Icons.brush_outlined,
+  //     'popular': false,
+  //   },
+  // ];
+  int _selectedServiceIndex = 0;
+
+  final WashServiceApi _serviceApi = WashServiceApi();
+
+  List<Map<String, dynamic>> _services = [];
+
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadServices();
+  }
+
+  Future<void> _loadServices() async {
+    try {
+      final services = await _serviceApi.getServices();
+
+      if (!mounted) return;
+
+      setState(() {
+        _services = services
+            .map((service) => service.toSelectionMap())
+            .toList();
+        _selectedServiceIndex = services.length > 1 ? 1 : 0;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = error.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -403,22 +444,77 @@ class _SelectServiceScreenState
   // SERVICE LIST
   // ============================================================
 
+  // Widget _buildServiceList() {
+  //   return Column(
+  //     children: List.generate(
+  //       _services.length,
+  //           (index) {
+  //         return Padding(
+  //           padding: const EdgeInsets.only(
+  //             bottom: 12,
+  //           ),
+  //           child: _buildServiceCard(
+  //             service: _services[index],
+  //             index: index,
+  //           ),
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
   Widget _buildServiceList() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(
+            color: Color(0xFF2878E8),
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Column(
+        children: [
+          Text(
+            'Could not load services.\n$_errorMessage',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFB8C0CC),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _errorMessage = null;
+              });
+              _loadServices();
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      );
+    }
+
+    if (_services.isEmpty) {
+      return const Text(
+        'No active services available.',
+        style: TextStyle(color: Color(0xFFB8C0CC)),
+      );
+    }
+
     return Column(
-      children: List.generate(
-        _services.length,
-            (index) {
-          return Padding(
-            padding: const EdgeInsets.only(
-              bottom: 12,
-            ),
-            child: _buildServiceCard(
-              service: _services[index],
-              index: index,
-            ),
-          );
-        },
-      ),
+      children: List.generate(_services.length, (index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildServiceCard(
+            service: _services[index],
+            index: index,
+          ),
+        );
+      }),
     );
   }
 
@@ -639,7 +735,24 @@ class _SelectServiceScreenState
         width: double.infinity,
         height: 54,
         child: ElevatedButton(
-          onPressed: () {
+          // onPressed: () {
+          //   final selectedService =
+          //   _services[_selectedServiceIndex];
+          //
+          //   Navigator.of(context).push(
+          //     MaterialPageRoute(
+          //       builder: (context) => SelectStoreScreen(
+          //         selectedVehicle: widget.selectedVehicle,
+          //         selectedService: selectedService,
+          //       ),
+          //     ),
+          //   );
+          // },
+          onPressed: _isLoading ||
+              _errorMessage != null ||
+              _services.isEmpty
+              ? null
+              : () {
             final selectedService =
             _services[_selectedServiceIndex];
 
